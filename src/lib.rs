@@ -183,8 +183,6 @@ where
     ///    use std::sync::Arc;
     ///    use std::sync::Mutex;
     ///    use std::sync::mpsc::channel;
-    ///    use std::thread::sleep;
-    ///    use std::time::Duration;
     ///
     ///    use ageing::Priority;
     ///    use ageing::PriorityQueue;
@@ -195,6 +193,8 @@ where
     ///
     ///      let (tx, rx) = channel();
     ///
+    ///      let (tx_ready, rx_ready) = channel();
+    ///
     ///      std::thread::spawn(move || {
     ///        let (tx_cb, rx_cb) = channel();
     ///        let mut guard = my_queue.lock().unwrap();
@@ -204,13 +204,13 @@ where
     ///        if task.is_none() {
     ///          guard.register(tx_cb);
     ///          drop(guard);
+    ///          tx_ready.send(()).expect("ready to proceed with test");
     ///          task = Some(rx_cb.recv().expect("to get a task at some point"));
     ///        }
     ///        tx.send(task).expect("we sent our task");
     ///      });
     ///
-    ///      // Slight pause to allow other thread to register
-    ///      sleep(Duration::from_millis(20));
+    ///      rx_ready.recv().expect("will become ready at some point");
     ///
     ///      let task = move || {};
     ///      queue
@@ -232,8 +232,6 @@ mod tests {
     use std::sync::mpsc::channel;
     use std::sync::Arc;
     use std::sync::Mutex;
-    use std::thread::sleep;
-    use std::time::Duration;
 
     use rand::distributions::Uniform;
     use rand::Rng;
@@ -450,6 +448,8 @@ mod tests {
 
         let (tx, rx) = channel();
 
+        let (tx_ready, rx_ready) = channel();
+
         std::thread::spawn(move || {
             let (tx_cb, rx_cb) = channel();
             let mut guard = my_queue.lock().unwrap();
@@ -459,13 +459,13 @@ mod tests {
             if task.is_none() {
                 guard.register(tx_cb);
                 drop(guard);
+                tx_ready.send(()).expect("ready to proceed with test");
                 task = Some(rx_cb.recv().expect("to get a task at some point"));
             }
             tx.send(task).expect("we sent our task");
         });
 
-        // Slight pause to allow other thread to register
-        sleep(Duration::from_millis(20));
+        rx_ready.recv().expect("will become ready at some point");
 
         let task = move || {};
         queue
